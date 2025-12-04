@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  GUEST
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  password    String
+  role        UserRole @default(GUEST)
+  rooms       Room[]
+  bookings    Booking[] 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Room {
+  id          Int      @id @default(autoincrement())
+  name        String
+  price       Float
+  capacity    Int
+  status      String   @default("ACTIVE")
+  owner       User     @relation(fields: [ownerId], references: [id])
+  ownerId     Int
+  bookings    Booking[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Booking {
+  id          Int            @id @default(autoincrement())
+  room        Room           @relation(fields: [roomId], references: [id])
+  roomId      Int
+  guest       User           @relation(fields: [guestId], references: [id])
+  guestId     Int
+  startDate   DateTime
+  endDate     DateTime
+  status      BookingStatus  @default(PENDING)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([roomId, startDate, endDate])  
+}
