@@ -2,35 +2,56 @@
 
 ## Overview
 
-This project provides a backend service for a mini room reservation system. It supports user authentication, role-based authorization, room management, room availability search with date filtering, and booking lifecycle with prevention of overlapping bookings.
+This project provides a backend service for a mini room reservation system built with NestJS and Prisma ORM. It supports JWT authentication, role-based authorization, room management, room availability search with filtering, and booking lifecycle with prevention of overlapping bookings.
 
-### Roles Supported
+## Roles Supported
 
-- **OWNER**: Manages rooms and views bookings
-- **GUEST**: Searches rooms, creates bookings, cancels bookings
-- **ADMIN**: Views all bookings
+- **OWNER**: Manages rooms and views bookings for owned rooms
+- **GUEST**: Searches rooms, creates bookings, cancels own bookings
+- **ADMIN**: Views all bookings for monitoring/dashboard
 
 ## Tech Stack
 
-- Node.js with TypeScript
-- Express.js
+- Node.js + TypeScript
+- NestJS (modular architecture)
 - Prisma ORM
-- MySQL (using Docker)
+- MySQL (Docker)
 - JWT authentication
+- Swagger API Docs
 
 ## Project Structure
 
 ```
 src/
-├── auth/
-├── bookings/
-├── rooms/
-├── users/
-└── shared/
+├── app.module.ts
+├── main.ts
+├── prisma/
+│   ├── prisma.module.ts
+│   └── prisma.service.ts
+├── common/
+│   ├── decorators/
+│   └── guards/
+├── modules/
+│   ├── auth/
+│   │   ├── auth.module.ts
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   ├── dto/
+│   │   └── jwt.strategy.ts
+│   ├── users/
+│   │   ├── users.module.ts
+│   │   ├── users.controller.ts
+│   │   └── users.service.ts
+│   ├── rooms/
+│   │   ├── rooms.module.ts
+│   │   ├── rooms.controller.ts
+│   │   └── rooms.service.ts
+│   └── bookings/
+│       ├── bookings.module.ts
+│       ├── bookings.controller.ts
+│       └── bookings.service.ts
 prisma/
 └── schema.prisma
-README.md
-.env.example
 ```
 
 ## Docker Setup
@@ -67,15 +88,8 @@ npx prisma generate
 npm run dev
 ```
 
-**API Base URL**: `http://localhost:3000`
-
-## Roles and Permissions
-
-| Role | Permissions |
-|------|-------------|
-| **OWNER** | Create and update rooms, view bookings for owned rooms |
-| **GUEST** | Search rooms, create bookings, cancel own bookings |
-| **ADMIN** | View all bookings |
+**API Base URL**: `http://localhost:3000`  
+**Swagger Docs**: `http://localhost:3000/docs`
 
 ## Authentication
 
@@ -87,7 +101,7 @@ Authorization: Bearer <your_jwt_token>
 
 ### Register User
 
-**POST** `/api/auth/register`
+**POST** `/auth/register`
 
 ```json
 {
@@ -100,7 +114,7 @@ Authorization: Bearer <your_jwt_token>
 
 ### Login User
 
-**POST** `/api/auth/login`
+**POST** `/auth/login`
 
 ```json
 {
@@ -115,7 +129,7 @@ Authorization: Bearer <your_jwt_token>
 
 #### Get Current User
 
-**GET** `/api/users/me`
+**GET** `/users/me`
 
 Returns the authenticated user's profile.
 
@@ -125,7 +139,7 @@ Returns the authenticated user's profile.
 
 #### Create Room (Owner Only)
 
-**POST** `/api/rooms`
+**POST** `/rooms`
 
 ```json
 {
@@ -137,7 +151,7 @@ Returns the authenticated user's profile.
 
 #### Update Room (Owner Only)
 
-**PUT** `/api/rooms/:id`
+**PATCH** `/rooms/:id`
 
 ```json
 {
@@ -147,31 +161,14 @@ Returns the authenticated user's profile.
 }
 ```
 
-#### Get Owned Rooms
+#### Get All Rooms (Public)
 
-**GET** `/api/rooms/me`
-
-Returns all rooms owned by the authenticated user.
-
-#### Search Rooms (Any Authenticated User)
-
-**GET** `/api/rooms`
+**GET** `/rooms`
 
 **Query Parameters:**
-
-- `minPrice`: Minimum room price
-- `maxPrice`: Maximum room price
-- `capacity`: Required capacity
-- `startDate`: Booking start date (ISO 8601 format)
-- `endDate`: Booking end date (ISO 8601 format)
-
-**Example:**
-
-```
-GET /api/rooms?minPrice=50&maxPrice=150&capacity=2&startDate=2025-12-10T12:00:00.000Z&endDate=2025-12-12T10:00:00.000Z
-```
-
-Filters rooms based on price, capacity, and availability without overlapping bookings.
+- `minPrice`
+- `maxPrice`
+- `capacity`
 
 ---
 
@@ -179,7 +176,7 @@ Filters rooms based on price, capacity, and availability without overlapping boo
 
 #### Create Booking (Guest)
 
-**POST** `/api/bookings`
+**POST** `/bookings`
 
 ```json
 {
@@ -191,34 +188,19 @@ Filters rooms based on price, capacity, and availability without overlapping boo
 
 #### View Own Bookings (Guest)
 
-**GET** `/api/bookings/guest/me`
-
-Returns all bookings created by the authenticated guest.
+**GET** `/bookings/my`
 
 #### View Bookings for Owned Rooms (Owner)
 
-**GET** `/api/bookings/owner/my-rooms`
-
-Returns all bookings for rooms owned by the authenticated owner.
+**GET** `/bookings/owner`
 
 #### View All Bookings (Admin)
 
-**GET** `/api/bookings/admin`
+**GET** `/bookings`
 
-Returns all bookings in the system.
+#### Cancel Booking (Guest Only)
 
-#### Cancel Booking
-
-**PATCH** `/api/bookings/:id/cancel`
-
-Cancellation allowed by:
-- Guest who created the booking
-- Owner of the room
-- Admin
-
-**Note**: Cancelled bookings do not block room availability.
-
----
+**DELETE** `/bookings/:id`
 
 ## Data Models
 
@@ -230,7 +212,7 @@ Cancellation allowed by:
 | name | String | User's full name |
 | email | String | Unique email address |
 | password | String | Hashed password |
-| role | Enum | GUEST, OWNER, or ADMIN |
+| role | Enum | GUEST, OWNER, ADMIN |
 | createdAt | DateTime | Account creation timestamp |
 | updatedAt | DateTime | Last update timestamp |
 
@@ -239,10 +221,10 @@ Cancellation allowed by:
 | Field | Type | Description |
 |-------|------|-------------|
 | id | Int | Primary key |
-| name | String | Room name/number |
+| name | String | Room name |
 | price | Float | Price per night |
 | capacity | Int | Maximum occupancy |
-| status | Enum | AVAILABLE or UNAVAILABLE |
+| status | String | AVAILABLE or UNAVAILABLE |
 | ownerId | Int | Foreign key to User |
 | createdAt | DateTime | Creation timestamp |
 | updatedAt | DateTime | Last update timestamp |
@@ -254,63 +236,51 @@ Cancellation allowed by:
 | id | Int | Primary key |
 | roomId | Int | Foreign key to Room |
 | guestId | Int | Foreign key to User |
-| startDate | DateTime | Booking start date/time |
-| endDate | DateTime | Booking end date/time |
-| status | Enum | CONFIRMED or CANCELLED |
-| createdAt | DateTime | Creation timestamp |
-| updatedAt | DateTime | Last update timestamp |
+| startDate | DateTime | Booking start date |
+| endDate | DateTime | Booking end date |
+| status | Enum | PENDING, CONFIRMED, CANCELLED |
+| createdAt | DateTime | Timestamp |
+| updatedAt | DateTime | Timestamp |
 
 ## Booking Logic
 
-- **Prevent Overlapping Bookings**: System validates that no active bookings exist for the requested date range
-- **Date Range Validation**: End date must be after start date
-- **Cancelled Bookings**: Do not block room availability
-- **Owner Access**: Can view all bookings for their owned rooms
-- **Admin Access**: Can view all bookings in the system
+- Prevent overlapping bookings
+- Validate date ranges (endDate > startDate)
+- Cancelled bookings do not block availability
+- Owner can view bookings for owned rooms
+- Admin can view all bookings
 
 ## Error Handling
 
 | Status Code | Description |
 |-------------|-------------|
-| 400 | Bad Request - Invalid input or validation error |
-| 401 | Unauthorized - Missing or invalid authentication token |
-| 403 | Forbidden - Insufficient permissions |
-| 404 | Not Found - Resource does not exist |
-| 409 | Conflict - Overlapping booking attempt |
+| 400 | Validation error |
+| 401 | Unauthorized |
+| 403 | Forbidden |
+| 404 | Not found |
+| 409 | Overlapping booking |
 
-## Postman Testing
+## Swagger / API Docs
 
-The API has been tested with Postman covering:
+Interactive API documentation is available at:
 
-- User authentication (registration and login)
-- Room operations (create, update, search)
-- Availability filtering with date ranges
-- Booking creation and cancellation
-- Owner and admin views
+**http://localhost:3000/docs**
 
-A Postman collection can be exported for testing purposes.
+Features:
+- Endpoint descriptions
+- Example request bodies
+- Try-it-out feature
+- Bearer auth support
 
 ## Manual Test Procedure
 
-1. Register users with different roles (GUEST, OWNER, ADMIN)
+1. Register users with different roles
 2. Login to obtain JWT tokens
 3. Create rooms as OWNER
-4. Search available rooms with date filters
+4. List rooms and apply filters
 5. Create a booking as GUEST
-6. Attempt to create an overlapping booking (should be rejected)
-7. Cancel the booking
-8. Search rooms again to verify availability
-
-## Repository Notes
-
-- Backend API only
-- No unrelated features included
-- Do not commit `.env` file
-- Include `.env.example` and `README.md`
-
-## License
-
-Created for educational backend development training.
+6. Attempt overlapping booking (should fail)
+7. Cancel booking
+8. Verify renewed availability
 
 ---
-
